@@ -1,0 +1,55 @@
+name: upstream-check
+
+# Compara NeoZi12/dispatchseo:main contra esta rama (mx-market) y, si upstream
+# tiene commits nuevos, abre o actualiza un PR de sincronización. Victor decide
+# cuándo hacer merge; después, en la Mac: git pull && sh start.sh
+on:
+  schedule:
+    - cron: "0 13 * * *" # 7:00 CDMX
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Contar commits nuevos en upstream
+        id: cmp
+        run: |
+          git remote add upstream https://github.com/NeoZi12/dispatchseo.git
+          git fetch --quiet upstream main
+          COUNT=$(git rev-list --count HEAD..upstream/main)
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+          {
+            echo "Upstream \`NeoZi12/dispatchseo:main\` tiene **$COUNT** commit(s) que no están en \`mx-market\`."
+            echo
+            echo "Al hacer merge, actualiza la instancia local con \`git pull && sh start.sh\`."
+            echo "Si hay conflicto, conserva la entrada de México en \`src/lib/market.ts\` y \`src/lib/serp.ts\`."
+            echo
+            echo '```'
+            git log --no-merges --format='%h %ad %s' --date=short HEAD..upstream/main
+            echo '```'
+          } > /tmp/body.md
+          echo "Commits nuevos: $COUNT"
+
+      - name: Abrir o actualizar el PR
+        if: steps.cmp.outputs.count != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TITLE="Sync upstream: ${{ steps.cmp.outputs.count }} commit(s) nuevos"
+          EXISTING=$(gh pr list --repo "$GITHUB_REPOSITORY" --base mx-market --label upstream-sync --state open --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            gh pr edit "$EXISTING" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --body-file /tmp/body.md
+            echo "PR #$EXISTING actualizado"
+          else
+            gh pr create --repo "$GITHUB_REPOSITORY" --base mx-market --head NeoZi12:main \
+              --title "$TITLE" --body-file /tmp/body.md --label upstream-sync
+          fi
