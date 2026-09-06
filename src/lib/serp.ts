@@ -48,6 +48,7 @@ const LOCATION_TO_GL: Record<number, string> = {
   2276: "de",
   2250: "fr",
   2724: "es",
+  2484: "mx",
   2380: "it",
   2528: "nl",
   2376: "il",

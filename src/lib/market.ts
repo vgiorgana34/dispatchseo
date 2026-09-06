@@ -66,6 +66,14 @@ export const MARKETS: Market[] = [
     ],
   },
   {
+    location_code: 2484,
+    label: "Mexico",
+    languages: [
+      { code: "es", label: "Spanish" },
+      { code: "en", label: "English" },
+    ],
+  },
+  {
     location_code: 2380,
     label: "Italy",
     languages: [
