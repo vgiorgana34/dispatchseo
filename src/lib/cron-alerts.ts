@@ -44,12 +44,12 @@ export type CronJob =
 const STALE_HOURS: Record<string, number> = {
   "daily-ranks": 36,
   // The article queue drain, scheduled every 10 minutes in both
-  // .github/workflows/jobs.yml and docker/cron/crontab. Idle ticks report as
-  // claim-only, so this clock is only ever advanced by a tick that actually
-  // processed something - which means the threshold has to tolerate a genuinely
-  // quiet queue. 6h is far longer than any real gap between a crawl, a finish
-  // and a publish on an active project, and short enough that a wedged drain
-  // is noticed the same working day.
+  // .github/workflows/jobs.yml and docker/cron/crontab. A tick that finds the
+  // queue empty is a real run and advances this clock; only a tick that left
+  // pending/in-flight rows unclaimed reports as claim-only (see
+  // api/cron/jobs/route.ts). So 6h here means "six hours of ticks that could
+  // not drain existing work, or no ticks at all" - a wedged drain or a dead
+  // scheduler, noticed the same working day - and never a quiet queue.
   jobs: 6,
   // The backend's own SEO scheduler (api/cron/seo-dispatch), every 3h. It is
   // now the thing that WAKES every connected repo's builders, so its silence is
