@@ -156,10 +156,19 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   console.log("[jobs]", JSON.stringify(result));
-  // Claim-only when nothing was actually processed: an idle tick is not a run
-  // worth counting against the staleness clock, same reasoning as the other
-  // claim-marker crons. A tick that found wedged rows is a real outcome, never
-  // claim-only - the claim marker would hide its error from the banner.
-  await reportCronRun("jobs", result, hadError, jobs.length === 0 && queue.wedged === 0);
+  // Claim-only ONLY when the tick had work it did not pick up: rows pending
+  // or in flight and nothing claimed is the "stuck drain" signal the 6h
+  // staleness window exists to catch, and a claim marker keeps the clock from
+  // advancing on it. A tick that found the queue EMPTY is a real, successful
+  // run: the drain is proven alive and there was nothing to drain. Before this
+  // distinction every idle tick was claim-only, so a project whose queue stayed
+  // quiet for more than STALE_HOURS.jobs (a self-hosted install where the
+  // in-stack builder handles publishing, or simply a slow week) showed "jobs
+  // is overdue" on Home and get_cron_health with the cron firing every 10
+  // minutes and nothing broken (2026-09-07, aigenci self-host). A tick that
+  // found wedged rows is a real outcome either way, never claim-only - the
+  // claim marker would hide its error from the banner.
+  const idleWithWorkLeft = jobs.length === 0 && queue.wedged === 0 && queue.pending + queue.inFlight > 0;
+  await reportCronRun("jobs", result, hadError, idleWithWorkLeft);
   return Response.json(result, { status: hadError ? 500 : 200 });
 }
